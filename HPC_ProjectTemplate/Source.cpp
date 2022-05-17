@@ -206,7 +206,7 @@ int main(int args, char** argv)
 		Recived_Array_Sum[incIndex++] = Local_Summ;
 		Local_Summ = 0;
 	}
-	if (Rank_Id >= 1)//send answer data
+	if (Rank_Id > 0)//send answer data
 	{
 		MPI_Send(&Spilt_Lenght, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
 		MPI_Send(Recived_Array, Spilt_Lenght, MPI_INT, 0, 0, MPI_COMM_WORLD);
