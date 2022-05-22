@@ -1,11 +1,10 @@
 #include <iostream>
 #include <math.h>
-#include <mpi.h> ////
-#include <stdio.h>////
 #include <stdlib.h>
-#include <string.h>
-#include <msclr\marshal_cppstd.h>
+#include<string.h>
+#include<msclr\marshal_cppstd.h>
 #include <ctime>// include this header 
+#include<mpi.h>
 #pragma once
 
 #using <mscorlib.dll>
@@ -15,51 +14,53 @@
 using namespace std;
 using namespace msclr::interop;
 
-int* inputImage(int* w, int* h, System::String^ imagePath) //put the size of image in w & h
+int* Properties_Image(int* w, int* h, System::String^ imagePath) //put the size of image in w & h
 {
-	int* input;
+	int* Output_Image;
 
 
-	int OriginalImageWidth, OriginalImageHeight;
+	int Read_Image_Width, Read_Image_Height;
 
 	//*********************************************************Read Image and save it to local arrayss*************************	
 	//Read Image and save it to local arrayss
 
-	System::Drawing::Bitmap BM(imagePath);
+	System::Drawing::Bitmap Image_Array(imagePath);
 
-	OriginalImageWidth = BM.Width;
-	OriginalImageHeight = BM.Height;
-	*w = BM.Width;
-	*h = BM.Height;
-	int* Red = new int[BM.Height * BM.Width];
-	int* Green = new int[BM.Height * BM.Width];
-	int* Blue = new int[BM.Height * BM.Width];
-	input = new int[BM.Height * BM.Width];
-	for (int i = 0; i < BM.Height; i++)
+	Read_Image_Width = Image_Array.Width;
+	Read_Image_Height = Image_Array.Height;
+	*w = Image_Array.Width;
+	*h = Image_Array.Height;
+	int* Red_Channel = new int[Image_Array.Height * Image_Array.Width];
+	int* Green_Channel = new int[Image_Array.Height * Image_Array.Width];
+	int* Blue_Channel = new int[Image_Array.Height * Image_Array.Width];
+	Output_Image = new int[Image_Array.Height * Image_Array.Width];
+	for (int i = 0; i < Image_Array.Height; i++)
 	{
-		for (int j = 0; j < BM.Width; j++)
+		for (int j = 0; j < Image_Array.Width; j++)
 		{
-			System::Drawing::Color c = BM.GetPixel(j, i);
+			System::Drawing::Color Color_Details = Image_Array.GetPixel(j, i);
 
-			Red[i * BM.Width + j] = c.R;
-			Blue[i * BM.Width + j] = c.B;
-			Green[i * BM.Width + j] = c.G;
+			Red_Channel[i * Image_Array.Width + j] = Color_Details.R;
+			Blue_Channel[i * Image_Array.Width + j] = Color_Details.B;
+			Green_Channel[i * Image_Array.Width + j] = Color_Details.G;
 
-			input[i * BM.Width + j] = ((c.R + c.B + c.G) / 3); //gray scale value equals the average of RGB values
+			Output_Image[i * Image_Array.Width + j] = ((Color_Details.R + Color_Details.B + Color_Details.G) / 3); //gray scale value equals the average of RGB values
 
 		}
 
 	}
-	return input;
+	return Output_Image;
 }
-void createImage(int* image, int width, int height, int index)
+
+
+void Draw_New_Image(int* image, int width, int height)
 {
-	System::Drawing::Bitmap MyNewImage(width, height);
+	System::Drawing::Bitmap New_Image_Array(width, height);
 
 
-	for (int i = 0; i < MyNewImage.Height; i++)
+	for (int i = 0; i < New_Image_Array.Height; i++)
 	{
-		for (int j = 0; j < MyNewImage.Width; j++)
+		for (int j = 0; j < New_Image_Array.Width; j++)
 		{
 			//i * OriginalImageWidth + j
 			if (image[i * width + j] < 0)
@@ -70,169 +71,158 @@ void createImage(int* image, int width, int height, int index)
 			{
 				image[i * width + j] = 255;
 			}
-			System::Drawing::Color c = System::Drawing::Color::FromArgb(image[i * MyNewImage.Width + j], image[i * MyNewImage.Width + j], image[i * MyNewImage.Width + j]);
-			MyNewImage.SetPixel(j, i, c);
+			System::Drawing::Color Color_Details = System::Drawing::Color::FromArgb(image[i * New_Image_Array.Width + j], image[i * New_Image_Array.Width + j], image[i * New_Image_Array.Width + j]);
+			New_Image_Array.SetPixel(j, i, Color_Details);
 		}
 	}
-	MyNewImage.Save("..//Data//Output//outputRes" + index + ".png");
-	cout << "result Image Saved " << index << endl;
+
+
+	New_Image_Array.Save("..//Data//Output//outputRes.png");
+	cout << "result Image Saved " << endl;
 }
 
-int main(int args, char** argv)
+float** Calculate_Kernel(int Kernel_Size) {
+	float** Kernel_Filter = new float* [Kernel_Size];
+	for (int i = 0; i < Kernel_Size; i++)
+	{
+		Kernel_Filter[i] = new float[Kernel_Size];
+		for (int j = 0; j < Kernel_Size; j++)
+		{
+			Kernel_Filter[i][j] = 1.0 / (Kernel_Size * Kernel_Size * 1.0);
+		}
+	}
+	return Kernel_Filter;
+}
+
+
+int main()
 {
-	MPI_Init(NULL, NULL);
-	int Number_Processors, Rank_Id;
-	MPI_Comm_size(MPI_COMM_WORLD, &Number_Processors); //processors number
-	MPI_Comm_rank(MPI_COMM_WORLD, &Rank_Id); //processor id
-	int Current_Image_Width = 4, Current_Image_Height = 4; //imgwidth=cols ,,imgheight=rows
-	int* Image_Array_Values = NULL; //1d img data
-	int Spilt_Lenght, Begin_Send, End_Send, Recived_Counter, Recived_Array_Start, Reminder_Spilt;
-	int* Recived_Array = NULL;//contain sub send data
-	MPI_Status Begin;
-	// start get img data
-	System::String^ Image_Direction;
-	std::string Image_Location;
-	Image_Location = "..//Data//Input//test.png";     //img path
-	Image_Direction = marshal_as<System::String^>(Image_Location);
-	Image_Array_Values = inputImage(&Current_Image_Width, &Current_Image_Height, Image_Direction);
-	// end get img data
-	if (Rank_Id == 0)
-	{
-		//start split the data	1darr
-		Spilt_Lenght = (Current_Image_Height / Number_Processors) * Current_Image_Width; //need to be send to other process //kam height
-		Reminder_Spilt = (Current_Image_Height % Number_Processors) * Current_Image_Width;
-		for (int i = 1; i < Number_Processors; i++)
+	int Current_Image_Width = 4, Current_Image_Height = 4;
+
+	int Start_Time, End_Time, Full_Time = 0;
+
+	System::String^ Image_Path;
+	std::string Current_Image;
+	Current_Image = "..//Data//Input//N.png";
+
+	Image_Path = marshal_as<System::String^>(Current_Image);
+	int* Image_Array = Properties_Image(&Current_Image_Width, &Current_Image_Height, Image_Path); //pixel values of image
+
+	
+
+	///start code here
+
+	MPI_Init(NULL, NULL);///////////////////// mpiexec "HPC_ProjectTemplate.exe"
+	int Processors_Ranks;
+	MPI_Comm_rank(MPI_COMM_WORLD, &Processors_Ranks);
+	int Processors_Size;
+	MPI_Comm_size(MPI_COMM_WORLD, &Processors_Size);
+	int Lower_Rank = 0;
+	int Final_Rank = Processors_Size - 1;
+	float** Kernel_Filter;
+	int Kernel_Size;
+	if (Processors_Ranks == Lower_Rank) {
+
+		cout << "Please Enter The Kernel Size (ODD Number): ";
+		cin >> Kernel_Size;
+		if (Kernel_Size % 2 == 0)
 		{
-			Begin_Send = i * Spilt_Lenght; //zero index 
-			if (i == Number_Processors - 1) Spilt_Lenght += Reminder_Spilt;
-			Recived_Array_Start = Current_Image_Width;
-			MPI_Send(&Spilt_Lenght, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-			MPI_Send(&Current_Image_Height, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-			MPI_Send(&Current_Image_Width, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-			MPI_Send(&Recived_Array_Start, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-			if (i == Number_Processors - 1)
+			Kernel_Size -= 1;
+		}
+	}
+	MPI_Bcast(&Kernel_Size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	Kernel_Filter = Calculate_Kernel(Kernel_Size);
+	
+	Start_Time = clock();
+	
+	//start and end rows
+	int Divided_Image_Rows = Current_Image_Height / Processors_Size;
+	int Start_Image_Rows = Divided_Image_Rows * Processors_Ranks;
+	int End_Image_Rows = Start_Image_Rows + Divided_Image_Rows;
+	
+	if (Processors_Ranks == Final_Rank)
+		End_Image_Rows = Current_Image_Height;
+
+	cout << Processors_Ranks << ' ' << Start_Image_Rows << ' ' << End_Image_Rows << ' ' << endl;
+
+
+	int Work_Rows = End_Image_Rows - Start_Image_Rows;
+	int Work_Size = (Work_Rows)*Current_Image_Width;
+	int* Work_Image_Array = new int[Work_Size];
+	//kernel compution
+	for (int i = Start_Image_Rows; i < End_Image_Rows; i++)//image rows
+	{
+		for (int j = 0; j < Current_Image_Width; j++)//image columns
+		{
+			//(i,j) * kernel
+			int New_Value = 0;
+			int X_Axis = -(Kernel_Size / 2);
+			int Y_Axis = -(Kernel_Size / 2);
+			for (int m = 0; m < Kernel_Size; m++)//kernel rows
 			{
-				Recived_Counter = Spilt_Lenght + Current_Image_Width;
-				MPI_Send(&Recived_Counter, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-				MPI_Send(&Image_Array_Values[Begin_Send - Current_Image_Width], Recived_Counter, MPI_INT, i, 0, MPI_COMM_WORLD);
+				for (int l = 0; l < Kernel_Size; l++)//kernel columns
+				{
+
+					if ((j + Y_Axis >= Current_Image_Width) || (j + Y_Axis < 0)) {//columns
+						Y_Axis++;
+						continue;
+					}
+					if ((Processors_Ranks == 0 && (i + X_Axis < Start_Image_Rows)) || ((Processors_Ranks == Processors_Size - 1) && (i - Start_Image_Rows + X_Axis >= Work_Rows))) {
+						Y_Axis++;
+						continue;
+					}
+
+					New_Value += Kernel_Filter[m][l] * Image_Array[(i + X_Axis) * Current_Image_Width + (j + Y_Axis)];
+					Y_Axis++;
+				}
+				X_Axis++; Y_Axis = -(Kernel_Size / 2);
 			}
-			else
+			Work_Image_Array[(i - Start_Image_Rows) * Current_Image_Width + j] = New_Value;///lesa
+		}
+	}
+
+
+	if (Processors_Ranks == Lower_Rank)
+	{
+		// Define the receive counts
+		int* Work_Size_Counts = new int[Processors_Size];
+		int* Displacement_Size = new int[Processors_Size];
+		for (int i = 0; i < Processors_Size; i++)
+		{
+			if (i == Processors_Size - 1)
 			{
-				Recived_Counter = Spilt_Lenght + Current_Image_Width * 2;
-				MPI_Send(&Recived_Counter, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-				MPI_Send(&Image_Array_Values[Begin_Send - Current_Image_Width], Recived_Counter, MPI_INT, i, 0, MPI_COMM_WORLD);
+				Work_Size_Counts[i] = (Current_Image_Width * (Current_Image_Height)) - (Work_Size * (Final_Rank));
+
+				Displacement_Size[i] = (i)*Work_Size;
+
+				break;
+
 			}
+			Displacement_Size[i] = i * Work_Size;
+			Work_Size_Counts[i] = Work_Size;
 		}
-		//process 0 data
-		Spilt_Lenght = (Current_Image_Height / Number_Processors) * Current_Image_Width;
-		if (Number_Processors > 1)
-			Recived_Counter = Spilt_Lenght + Current_Image_Width;
-		else
-			Recived_Counter = Spilt_Lenght;
-		Recived_Array_Start = 0;
-		Recived_Array = new int[Recived_Counter];
-		for (int i = 0; i < Recived_Counter; i++)
-			Recived_Array[i] = Image_Array_Values[i];
-		//end split the data 1darr
+		MPI_Gatherv(Work_Image_Array, Work_Size, MPI_FLOAT, Image_Array, Work_Size_Counts, Displacement_Size, MPI_FLOAT, Lower_Rank, MPI_COMM_WORLD);
 	}
-	else if (Rank_Id < Number_Processors)  //start recv data 
+	else
 	{
-		MPI_Recv(&Spilt_Lenght, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &Begin);
-		MPI_Recv(&Current_Image_Height, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &Begin);
-		MPI_Recv(&Current_Image_Width, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &Begin);
-		MPI_Recv(&Recived_Array_Start, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &Begin);
-		MPI_Recv(&Recived_Counter, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &Begin);
-		Recived_Array = new int[Recived_Counter];
-		MPI_Recv(Recived_Array, Recived_Counter, MPI_INT, 0, 0, MPI_COMM_WORLD, &Begin);
-	} //end recv data
-	//start process code
-	int* Recived_Array_Sum = new int[Spilt_Lenght + Reminder_Spilt];//for answer data
-	double Local_Summ = 0;
-	///
-	int positions[9], incIndex = 0;
-	///
-	End_Send = Spilt_Lenght + Current_Image_Width;
-	if (Rank_Id == 0)
-		End_Send = Spilt_Lenght;
-	for (int i = Recived_Array_Start; i < End_Send; i++)
-	{
-		positions[4] = Recived_Array[i];	//center point
-		if (i - Current_Image_Width < 0) //upper center point
-			positions[1] = Recived_Array[i]; //mfe4 upper center
-		else
-			positions[1] = Recived_Array[i - Current_Image_Width]; //fe upper center
-		if (i + Current_Image_Width >= Recived_Counter) //down center point
-			positions[7] = Recived_Array[i]; //mfe4 down center
-		else
-			positions[7] = Recived_Array[i + Current_Image_Width]; //fe down center
-		if (i % Current_Image_Width == 0)	//left point
-		{
-			positions[3] = positions[4]; //mfe4 left
-			positions[0] = positions[4];//mfe4 upper left
-			positions[6] = positions[7]; //mfe4 down left
-		}
-		else
-		{
-			positions[3] = Recived_Array[i - 1]; //fe left
-			if (i - 1 - Current_Image_Width < 0) //upper left point
-				positions[0] = positions[4]; //mfe4 upper left
-			else
-				positions[0] = Recived_Array[i - 1 - Current_Image_Width]; //fe upper left
-			if (i - 1 + Current_Image_Width >= Recived_Counter) //down left point
-				positions[6] = Recived_Array[i]; //mfe4 down left
-			else
-				positions[6] = Recived_Array[i - 1 + Current_Image_Width]; //fe down left
-		}
-		if ((i + 1) % Current_Image_Width == 0)	//right  point
-		{
-			positions[5] = positions[4]; //mfe4 right
-			positions[2] = positions[4];//mfe4 upper right
-			positions[8] = positions[7]; //mfe4 down right
-		}
-		else
-		{
-			positions[5] = Recived_Array[i + 1]; //fe right
-			if (i + 1 - Current_Image_Width < 0) //upper right point
-				positions[2] = positions[4]; //mfe4 upper right
-			else
-				positions[2] = Recived_Array[i + 1 - Current_Image_Width]; //fe upper right
-			if (i + 1 + Current_Image_Width >= Recived_Counter) //down right point
-				positions[8] = Recived_Array[i]; //mfe4 down right
-			else
-				positions[8] = Recived_Array[i + 1 + Current_Image_Width]; //fe down right
-		}
-		for (int j = 0; j < 9; j++)      //divide by 9 try change it change the values and the photo
-			Local_Summ += positions[j] / 9;
-		Recived_Array_Sum[incIndex++] = Local_Summ;
-		Local_Summ = 0;
+		MPI_Gatherv(Work_Image_Array, Work_Size, MPI_FLOAT, NULL, NULL, NULL, MPI_FLOAT, Lower_Rank, MPI_COMM_WORLD);
 	}
-	if (Rank_Id > 0)//send answer data
-	{
-		MPI_Send(&Spilt_Lenght, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-		MPI_Send(Recived_Array, Spilt_Lenght, MPI_INT, 0, 0, MPI_COMM_WORLD);
-	}
-	if (Rank_Id == 0)//collect data
-	{
-		int inc = 0;
-		for (int i = 0; i < Spilt_Lenght; i++)
-			Image_Array_Values[inc++] = Recived_Array_Sum[i];
-		for (int j = 1; j < Number_Processors; j++)
-		{
-			MPI_Recv(&Spilt_Lenght, 1, MPI_INT, j, 0, MPI_COMM_WORLD, &Begin);//rank j
-			MPI_Recv(Recived_Array_Sum, Spilt_Lenght, MPI_INT, j, 0, MPI_COMM_WORLD, &Begin);//rank j
-			for (int i = 0; i < Spilt_Lenght; i++)
-				Image_Array_Values[inc++] = Recived_Array_Sum[i];
-		}
-		//make img
-			//start clock times
-		int Begin_Time, End_Time, Complete_Time = 0;
-		Begin_Time = clock();
-		createImage(Image_Array_Values, Current_Image_Width, Current_Image_Height, 0);
+	if (Lower_Rank) {
+		
 		End_Time = clock();
-		Complete_Time += (End_Time - Begin_Time) / double(CLOCKS_PER_SEC) * 1000;
-		cout << "time: " << Complete_Time << endl;
-		free(Image_Array_Values);
+		Full_Time += (End_Time - Start_Time) / double(CLOCKS_PER_SEC) * 1000;
+		
+		cout << "Time: " << Full_Time << endl;
+
+		Draw_New_Image(Image_Array, Current_Image_Width, Current_Image_Height);
 	}
-	MPI_Finalize();
+
+
+	MPI_Finalize();//////////////////////////////////////////////////////////////////
+	///end
+
+
+	free(Image_Array);
 	return 0;
+
 }
